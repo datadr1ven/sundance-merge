@@ -8,7 +8,6 @@ from io import BytesIO
 import base64
 import zipfile
 import hashlib
-import json
 
 VERBOSE = True
 
@@ -165,96 +164,94 @@ def merge_hyfiles(the_arg):
     rvf += "B2                                                                                          010101S1  0.00                      61\n"
     entries_accum = {}
     
-    for filenum in range(files_div.children.length):
-        file_div = files_div.children.item(filenum)
-        file_name = file_div.children.item(0).innerText
-        
-        # Get file contents from hidden input
-        file_input_id = f"file_contents_{file_name}"
-        file_input = document.getElementById(file_input_id)
-        if not file_input:
-            output_div.innerHTML = f'<div class="error-message">Error: Could not find file {file_name}</div>'
-            return
-        file_contents = file_input.value
-        
-        if file_name[-4:].lower() == '.zip':
-            ba = Uint8Array.new(file_contents)
-            hy3_file = BytesIO(bytearray(ba))
-            with open(file_name, "wb") as f:
-                for line in hy3_file.readlines():
-                    f.write(line)
-            z = zipfile.ZipFile(file_name)
-            if len(z.filelist) > 1:
-                output_div.innerHTML = f'<div class="error-message">Error: [{file_name}] contains more than one file</div>'
-                return
-            if not (z.filelist[0].filename[-4:].lower() == '.hy3'):
-                output_div.innerHTML = f'<div class="error-message">Error: The file in [{file_name}] is not a .hy3 file</div>'
-                return
-            z.extractall()
-            file_name = z.filelist[0].filename
-            file_contents = open(file_name, encoding="windows-1252").read()
-            hy3_file = StringIO(file_contents)
-            with open(file_name, "w") as f: 
-                for line in hy3_file.readlines():
-                    f.write(line)
-        elif file_name[-4:].lower() == '.hy3':
-            hy3_file = StringIO(file_contents) 
-            with open(file_name, "w") as f: 
-                for line in hy3_file.readlines():
-                    f.write(line)
-
-        rvs += "processing file [%s]\n" % file_name 
-
-        entries_accum = accumulate_entries(file_name, entries_accum)
-
-        hf = hytek_parser.parse_hy3(file_name)
-        for event_key in hf.meet.events.keys():
-            event_record = hf.meet.events[event_key]
-            if event_key not in d:
-                d[event_key] = {
-                    'auto_qual': [], 
-                    'wildcard_pool': [], 
-                    'age_min': event_record.age_min, 
-                    'age_max': event_record.age_max, 
-                    'event_gender': event_record.gender, 
-                    'distance': event_record.distance,
-                    'stroke': event_record.stroke,
-                    'num_wildcards': num_wildcards
-                }
-            sorted_entries = sorted(event_record.entries, key=lambda x: x.converted_seed_time)
-            for (i, entry) in enumerate(sorted_entries):
-                if i <= (num_auto-1):
-                    d[event_key]['auto_qual'] += [entry]
-                else:
-                    d[event_key]['wildcard_pool'] += [entry]
-
-    # Generate HTML output with interactive tables
-    html_output = '<div class="success-message">✓ Merge complete! Click AUTO qualifiers below to scratch them and promote OUT swimmers.</div>\n'
-    
-    for i in range(1, 81):
-        if i not in d:
-            pass
-        else:
-            html_output += render_event_table(i, d[i], entries_accum)
-            (vs, vf) = format_auto_quals(d[i]['auto_qual'], num_auto, entries_accum)
-            rvs += vs
-            rvf += vf
-            (vs, vf) = format_k_wildcards(num_wildcards + ((num_auto*files_div.children.length) - len(d[i]['auto_qual'])), num_out, d[i]['wildcard_pool'], entries_accum)
-            rvs += vs
-            rvf += vf
-
-    output_div.innerHTML = html_output
-    
-    # Store the HY3 data for download
-    document.getElementById('hy3_data').value = rvf
-    
-    # Attach click handlers for interactive adjustment
-    from js import attachQualifierClickHandlers
     try:
-        attachQualifierClickHandlers()
-    except:
-        pass
+        for filenum in range(files_div.children.length):
+            file_div = files_div.children.item(filenum)
+            file_name = file_div.children.item(0).innerText
+            
+            # Get file contents from hidden input (3rd child - same as original)
+            file_contents = file_div.children.item(2).value
+            
+            if file_name[-4:].lower() == '.zip':
+                ba = Uint8Array.new(file_contents)
+                # Write bytearray directly instead of iterating
+                with open(file_name, "wb") as f:
+                    f.write(bytearray(ba))
+                z = zipfile.ZipFile(file_name)
+                if len(z.filelist) > 1:
+                    output_div.innerHTML = f'<div class="error-message">Error: [{file_name}] contains more than one file</div>'
+                    return
+                if not (z.filelist[0].filename[-4:].lower() == '.hy3'):
+                    output_div.innerHTML = f'<div class="error-message">Error: The file in [{file_name}] is not a .hy3 file</div>'
+                    return
+                z.extractall()
+                file_name = z.filelist[0].filename
+                file_contents = open(file_name, encoding="windows-1252").read()
+                hy3_file = StringIO(file_contents)
+                with open(file_name, "w") as f: 
+                    for line in hy3_file.readlines():
+                        f.write(line)
+                
+            elif file_name[-4:].lower() == '.hy3':
+                hy3_file = StringIO(file_contents) 
+                with open(file_name, "w") as f: 
+                    for line in hy3_file.readlines():
+                        f.write(line)
+
+            rvs += "processing file [%s]\n" % file_name 
+
+            entries_accum = accumulate_entries(file_name, entries_accum)
+
+            hf = hytek_parser.parse_hy3(file_name)
+            for event_key in hf.meet.events.keys():
+                event_record = hf.meet.events[event_key]
+                if event_key not in d:
+                    d[event_key] = {
+                        'auto_qual': [], 
+                        'wildcard_pool': [], 
+                        'age_min': event_record.age_min, 
+                        'age_max': event_record.age_max, 
+                        'event_gender': event_record.gender, 
+                        'distance': event_record.distance,
+                        'stroke': event_record.stroke,
+                        'num_wildcards': num_wildcards
+                    }
+                sorted_entries = sorted(event_record.entries, key=lambda x: x.converted_seed_time)
+                for (i, entry) in enumerate(sorted_entries):
+                    if i <= (num_auto-1):
+                        d[event_key]['auto_qual'] += [entry]
+                    else:
+                        d[event_key]['wildcard_pool'] += [entry]
+
+        # Generate HTML output with interactive tables
+        html_output = '<div class="success-message">✓ Merge complete! Click AUTO qualifiers below to scratch them and promote OUT swimmers.</div>\n'
+        
+        for i in range(1, 81):
+            if i not in d:
+                pass
+            else:
+                html_output += render_event_table(i, d[i], entries_accum)
+                (vs, vf) = format_auto_quals(d[i]['auto_qual'], num_auto, entries_accum)
+                rvs += vs
+                rvf += vf
+                (vs, vf) = format_k_wildcards(num_wildcards + ((num_auto*files_div.children.length) - len(d[i]['auto_qual'])), num_out, d[i]['wildcard_pool'], entries_accum)
+                rvs += vs
+                rvf += vf
+
+        output_div.innerHTML = html_output
+        
+        # Create download button
+        s = base64.b64encode(rvf.encode("windows-1252")).decode('ascii')
+        download_div.innerHTML = f'<a href="data:application/octet-stream;base64,{s}" download="entry_file.hy3" class="download-link">📥 Download HY3 Entry File</a>'
+        
+        # Attach click handlers for interactive adjustment
+        try:
+            from js import attachQualifierClickHandlers
+            attachQualifierClickHandlers()
+        except:
+            pass
     
-    # Create download button
-    s = base64.b64encode(rvf.encode("windows-1252")).decode('ascii')
-    download_div.innerHTML = f'<a href="data:application/octet-stream;base64,{s}" download="entry_file.hy3" class="download-link">📥 Download HY3 Entry File</a>'
+    except Exception as e:
+        output_div.innerHTML = f'<div class="error-message">Error: {str(e)}</div>'
+        import traceback
+        print(traceback.format_exc())
