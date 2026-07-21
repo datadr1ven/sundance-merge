@@ -2,7 +2,7 @@ import hytek_parser
 from hytek_parser.hy3.enums import Course
 import attrs
 from pyscript import document
-from js import Uint8Array
+from js import Uint8Array, getFileContents
 from io import StringIO
 from io import BytesIO
 import base64
@@ -169,12 +169,15 @@ def merge_hyfiles(the_arg):
             file_div = files_div.children.item(filenum)
             file_name = file_div.children.item(0).innerText
             
-            # Get file contents from hidden input (3rd child - same as original)
-            file_contents = file_div.children.item(2).value
+            # Get file contents from global object (set by file_input.js)
+            file_contents = getFileContents(file_name)
+            if not file_contents:
+                output_div.innerHTML = f'<div class="error-message">Error: Could not load file {file_name}</div>'
+                return
             
             if file_name[-4:].lower() == '.zip':
                 ba = Uint8Array.new(file_contents)
-                # Write bytearray directly instead of iterating
+                # Write bytearray directly
                 with open(file_name, "wb") as f:
                     f.write(bytearray(ba))
                 z = zipfile.ZipFile(file_name)
