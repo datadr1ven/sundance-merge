@@ -95,52 +95,31 @@ def accumulate_entries(hyfile, accum):
     accum[race][last_name][first_name][birthday] = running_accum
     return accum
 
-def render_event_table(event_num, event_data, entries_accum):
-    """Render interactive HTML table for an event's qualifiers"""
+def render_event_table(event_num, event_data, entries_accum, num_wildcards, num_out):
     html = f'<div class="event-section">\n'
-    html += f'<div class="event-header">'
-    html += f'<h4>Event {event_num} ({event_data["age_min"]}-{event_data["age_max"]} {event_data["event_gender"]} {event_data["distance"]}m {event_data["stroke"]})</h4>'
-    html += f'</div>\n'
-    html += f'<table class="qualifiers-table">\n'
-    html += f'<thead><tr><th>Status</th><th>Swimmer</th><th>Time</th></tr></thead>\n'
-    html += f'<tbody>\n'
+    html += f'<div class="event-header"><h4>Event {event_num} ({event_data["age_min"]}-{event_data["age_max"]} {event_data["event_gender"]} {event_data["distance"]}m {event_data["stroke"]})</h4></div>\n'
+    html += f'<table class="qualifiers-table"><thead><tr><th>Status</th><th>Swimmer</th><th>Time</th></tr></thead><tbody>\n'
     
-    # Sort all entries for display
-    all_entries = sorted(
-        event_data['auto_qual'] + event_data['wildcard_pool'],
-        key=lambda x: x.converted_seed_time if type(x.converted_seed_time) == float else float('inf')
-    )
-    
-    for entry in all_entries:
+    # Display autos first
+    for entry in sorted(event_data['auto_qual'], key=lambda x: x.converted_seed_time):
         swimmer = entry.swimmers[0]
         time_str = str(entry.converted_seed_time) if type(entry.converted_seed_time) == float else "--:--.-"
-        
-        # Determine status and styling
-        if entry in event_data['auto_qual']:
-            status = 'auto-qual'
-            badge_class = 'badge-auto'
-            badge_text = 'AUTO'
-        elif entry in event_data['wildcard_pool'][:event_data.get('num_wildcards', 7)]:
-            status = 'wildcard'
-            badge_class = 'badge-wildcard'
-            badge_text = 'WILDCARD'
-        else:
-            status = 'out'
-            badge_class = 'badge-out'
-            badge_text = 'OUT'
-        
-        swimmer_id = f"{event_num}_{swimmer.last_name}_{swimmer.first_name}_{swimmer.date_of_birth}"
-        
-        html += f'<tr class="swimmer-row {status}" data-event-num="{event_num}" data-swimmer-id="{swimmer_id}" data-status="{status}">\n'
-        html += f'<td><span class="qual-badge {badge_class}">{badge_text}</span></td>\n'
-        html += f'<td>{swimmer.last_name}, {swimmer.nick_name or swimmer.first_name} {swimmer.middle_initial or ""}</td>\n'
-        html += f'<td class="time-display">{time_str}</td>\n'
-        html += f'</tr>\n'
+        html += f'<tr class="swimmer-row auto-qual"><td><span class="qual-badge badge-auto">AUTO</span></td><td>{swimmer.last_name}, {swimmer.nick_name or swimmer.first_name}</td><td class="time-display">{time_str}</td></tr>\n'
     
-    html += f'</tbody>\n</table>\n'
-    html += f'<div class="click-hint">💡 Click an AUTO qualifier to scratch them and promote the next OUT swimmer</div>\n'
-    html += f'</div>\n'
+    # Display wildcards
+    wildcard_list = sorted([e for e in event_data['wildcard_pool'] if type(e.converted_seed_time) == float], key=lambda x: x.converted_seed_time)
+    for entry in wildcard_list[:num_wildcards]:
+        swimmer = entry.swimmers[0]
+        time_str = str(entry.converted_seed_time) if type(entry.converted_seed_time) == float else "--:--.-"
+        html += f'<tr class="swimmer-row wildcard"><td><span class="qual-badge badge-wildcard">WILDCARD</span></td><td>{swimmer.last_name}, {swimmer.nick_name or swimmer.first_name}</td><td class="time-display">{time_str}</td></tr>\n'
     
+    # Display OUT list
+    for entry in wildcard_list[num_wildcards:num_wildcards+num_out]:
+        swimmer = entry.swimmers[0]
+        time_str = str(entry.converted_seed_time) if type(entry.converted_seed_time) == float else "--:--.-"
+        html += f'<tr class="swimmer-row out"><td><span class="qual-badge badge-out">OUT</span></td><td>{swimmer.last_name}, {swimmer.nick_name or swimmer.first_name}</td><td class="time-display">{time_str}</td></tr>\n'
+    
+    html += f'</tbody></table></div>\n'
     return html
 
 def merge_hyfiles(the_arg):
@@ -167,9 +146,9 @@ def merge_hyfiles(the_arg):
     try:
         for filenum in range(files_div.children.length):
             file_div = files_div.children.item(filenum)
-            file_name = file_div.children.item(0).innerText
+            file_name = file_div.dataset.fileName
             
-            # Get file contents from global object (set by file_input.js)
+            # Get file contents from global object
             file_contents = getFileContents(file_name)
             if not file_contents:
                 output_div.innerHTML = f'<div class="error-message">Error: Could not load file {file_name}</div>'
@@ -177,7 +156,6 @@ def merge_hyfiles(the_arg):
             
             if file_name[-4:].lower() == '.zip':
                 ba = Uint8Array.new(file_contents)
-                # Write bytearray directly
                 with open(file_name, "wb") as f:
                     f.write(bytearray(ba))
                 z = zipfile.ZipFile(file_name)
@@ -216,8 +194,7 @@ def merge_hyfiles(the_arg):
                         'age_max': event_record.age_max, 
                         'event_gender': event_record.gender, 
                         'distance': event_record.distance,
-                        'stroke': event_record.stroke,
-                        'num_wildcards': num_wildcards
+                        'stroke': event_record.stroke
                     }
                 sorted_entries = sorted(event_record.entries, key=lambda x: x.converted_seed_time)
                 for (i, entry) in enumerate(sorted_entries):
@@ -226,14 +203,14 @@ def merge_hyfiles(the_arg):
                     else:
                         d[event_key]['wildcard_pool'] += [entry]
 
-        # Generate HTML output with interactive tables
-        html_output = '<div class="success-message">✓ Merge complete! Click AUTO qualifiers below to scratch them and promote OUT swimmers.</div>\n'
+        # Generate HTML output
+        html_output = '<div class="success-message">✓ Merge complete!</div>\n'
         
         for i in range(1, 81):
             if i not in d:
                 pass
             else:
-                html_output += render_event_table(i, d[i], entries_accum)
+                html_output += render_event_table(i, d[i], entries_accum, num_wildcards, num_out)
                 (vs, vf) = format_auto_quals(d[i]['auto_qual'], num_auto, entries_accum)
                 rvs += vs
                 rvf += vf
@@ -246,13 +223,6 @@ def merge_hyfiles(the_arg):
         # Create download button
         s = base64.b64encode(rvf.encode("windows-1252")).decode('ascii')
         download_div.innerHTML = f'<a href="data:application/octet-stream;base64,{s}" download="entry_file.hy3" class="download-link">📥 Download HY3 Entry File</a>'
-        
-        # Attach click handlers for interactive adjustment
-        try:
-            from js import attachQualifierClickHandlers
-            attachQualifierClickHandlers()
-        except:
-            pass
     
     except Exception as e:
         output_div.innerHTML = f'<div class="error-message">Error: {str(e)}</div>'
