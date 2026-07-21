@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Sundance Championships - Entries Merge Tool</title>
+    <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css">
+    <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.0.0/crypto-js.min.js"></script>
+    <script type="py" src="./main.py" config="./pyscript.json"></script>
+    <link rel="stylesheet" href="./style.css">
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>🏊 Sundance Championships</h1>
+        <h2>Entries Merge Tool</h2>
+        <p>Transform district outputs into a championship program</p>
+      </header>
+
+      <section class="setup-section">
+        <h3>Step 1: Upload Files</h3>
+        <p class="hint">Select 2-3 HY3 or zipped HY3 advancers files</p>
+        <form class="file-input-form">
+          <input type="file" id="fileElem" multiple accept=".hy3,.zip" onchange="handleFiles(this.files)">
+        </form>
+        <div id="files-display" class="files-display"></div>
+      </section>
+
+      <section class="settings-section">
+        <h3>Step 2: Set Qualification Rules</h3>
+        <div class="settings-grid">
+          <div class="setting-item">
+            <label for="num_auto">Auto Qualifiers per Event:</label>
+            <input type="number" required value="3" id="num_auto" min="0">
+          </div>
+          <div class="setting-item">
+            <label for="num_wildcards">Wildcards per Event:</label>
+            <input type="number" required value="7" id="num_wildcards" min="0">
+          </div>
+          <div class="setting-item">
+            <label for="num_out">Out List (swimmers to show):</label>
+            <input type="number" required value="5" id="num_out" min="0">
+          </div>
+        </div>
+      </section>
+
+      <section class="action-section">
+        <button py-click="merge_hyfiles" class="button-primary" role="button">
+          <span class="button-text">Step 3: Merge Files</span>
+        </button>
+      </section>
+
+      <div id="output-container" class="output-container"></div>
+      <div id="download-container" class="download-container"></div>
+    </div>
+
+    <script src="file_input.js"></script>
+    <script src="interactive.js"></script>
+  </body>
+</html>
